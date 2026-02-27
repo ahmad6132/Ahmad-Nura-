@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Nura7925 Lab App</title>
+
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/1048/1048954.png">
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://3dmol.org/build/3Dmol-min.js"></script>
+
+  <style>
+    :root { --bg: #f4f7f6; --text: #2c3e50; --card: #ffffff; --accent: #4682B4; }
+    body.dark-mode { --bg: #1a1a1a; --text: #ecf0f1; --card: #2c3e50; --accent: #5dade2; }
+    body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; transition: 0.3s; }
+    .nav { background: #2c3e50; color: white; padding: 1rem; text-align: center; font-weight: bold; }
+    .container { max-width: 1100px; margin: auto; padding: 15px; }
+    .grid { display: grid; grid-template-columns: 1fr; gap: 15px; }
+    @media (min-width: 850px) { .grid { grid-template-columns: 1fr 1fr; } }
+    .card { background: var(--card); padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    #viewer { width: 100%; height: 400px; border-radius: 8px; position: relative; touch-action: none; }
+    .btn-group { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 10px; }
+    .btn { flex: 1; background: var(--accent); color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: bold; min-width: 120px; }
+    .btn-vib { background: #e67e22; }
+    input[type="file"] { width: 100%; margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+
+<nav class="nav">Nura7925 Molecular Analysis Portal</nav>
+
+<div class="container">
+  <div class="grid">
+    <div class="card">
+      <div id="viewer"></div>
+      <div class="btn-group">
+        <button class="btn btn-vib" onclick="toggleVibration()">🔄 Play/Stop Vibration</button>
+        <button class="btn" onclick="document.body.classList.toggle('dark-mode')">🌓 Theme</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>📁 Lab Controls</h3>
+      <input type="file" id="fileIn" accept=".xyz">
+      <p>Distance: <span id="distOut" style="color:var(--accent); font-weight:bold;">Click 2 atoms</span></p>
+      
+      <div class="btn-group">
+        <button class="btn" onclick="resetMeasures()">Reset</button>
+        <button class="btn" onclick="saveImage()">📸 Snapshot</button>
+      </div>
+      
+      <hr>
+      <label>Hartree Input:</label>
+      <input type="number" id="hIn" value="-76.01" oninput="calc()" style="width: 80px;">
+      <p><strong>Energy:</strong> <span id="kcal">-47696.28</span> kcal/mol</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  let viewer = $3Dmol.createViewer("viewer", { backgroundColor: "white" });
+  let atoms = [];
+  let isVibrating = false;
+
+  const waterXYZ = "3\nWater\nO 0.0 0.0 0.0\nH 0.757 0.586 0.0\nH -0.757 0.586 0.0";
+  loadMol(waterXYZ);
+
+  function loadMol(data) {
+    viewer.clear();
+    const model = viewer.addModel(data, "xyz");
+    viewer.setStyle({}, {stick: {radius:0.15}, sphere: {scale:0.3}});
+    
+    // Setup for potential vibration (dummy vectors for H2O asymmetric stretch)
+    model.setVibrations([
+      {x: 0, y: 0, z: 0}, 
+      {x: 0.1, y: 0.1, z: 0}, 
+      {x: -0.1, y: 0.1, z: 0}
+    ]);
+
+    model.setClickable(true, (atom) => {
+      atoms.push(atom);
+      if(atoms.length === 2) {
+        const d = Math.sqrt(Math.pow(atoms[0].x-atoms[1].x,2)+Math.pow(atoms[0].y-atoms[1].y,2)+Math.pow(atoms[0].z-atoms[1].z,2));
+        document.getElementById('distOut').innerText = d.toFixed(3) + " Å";
+      }
+    });
+    viewer.zoomTo();
+    viewer.render();
+  }
+
+  function toggleVibration() {
+    isVibrating = !isVibrating;
+    if (isVibrating) {
+      viewer.vibrate(10, 1); // 10 steps, amplitude 1
+    } else {
+      viewer.vibrate(0, 0);
+    }
+  }
+
+  document.getElementById('fileIn').onchange = (e) => {
+    const reader = new FileReader();
+    reader.onload = () => loadMol(reader.result);
+    reader.readAsText(e.target.files[0]);
+  };
+
+  function calc() {
+    const v = document.getElementById('hIn').value;
+    document.getElementById('kcal').innerText = (v * 627.5).toFixed(2);
+  }
+
+  function resetMeasures() { atoms = []; document.getElementById('distOut').innerText = "Click 2 atoms"; }
+  function saveImage() { const a = document.createElement('a'); a.href = viewer.png(); a.download='molecule.png'; a.click(); }
+</script>
+
+</body>
+</html>
