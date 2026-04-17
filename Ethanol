@@ -1,0 +1,200 @@
+`html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BioChem Docking Dashboard</title>
+    <style>
+        :root {
+            --primary-bg: #121212;
+            --panel-bg: #1e1e1e;
+            --accent-blue: #3498db;
+            --text-green: #2ecc71;
+            --text-main: #e0e0e0;
+        }
+
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            margin: 0;
+            background-color: var(--primary-bg);
+            color: var(--text-main);
+            overflow: hidden;
+        }
+
+        /* GRID LAYOUT */
+        .grid-container {
+            display: grid;
+            height: 100vh;
+            grid-template-columns: 250px 1fr 300px;
+            grid-template-rows: 60px 1fr 200px;
+            grid-template-areas: 
+                "header header header"
+                "sidebar main-view scores"
+                "sidebar footer footer";
+            gap: 10px;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+
+        /* PANELS */
+        .header { grid-area: header; background: #000; display: flex; align-items: center; padding-left: 20px; border-radius: 8px; border-bottom: 2px solid var(--accent-blue); }
+        .sidebar { grid-area: sidebar; background: var(--panel-bg); padding: 20px; border-radius: 8px; }
+        .main-view { grid-area: main-view; background: #000; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: auto; }
+        .scores { grid-area: scores; background: var(--panel-bg); padding: 20px; border-radius: 8px; }
+        .footer { grid-area: footer; background: #0a0a0a; color: var(--text-green); padding: 15px; border-radius: 8px; overflow-y: auto; font-family: 'Courier New', monospace; border: 1px solid #333; }
+
+        /* IMAGE GALLERY STYLES */
+        .image-gallery { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; }
+        .chem-image { background: white; padding: 10px; border-radius: 8px; text-align: center; width: 220px; transition: 0.3s; }
+        .chem-image img { width: 100%; height: auto; border-radius: 4px; }
+        .chem-image figcaption { color: #333; font-size: 0.8em; margin-top: 5px; font-weight: bold; }
+        .chem-image:hover { transform: translateY(-5px); box-shadow: 0 5px 15px rgba(52, 152, 219, 0.5); }
+
+        /* UI ELEMENTS */
+        .mol-link { padding: 12px; background: #2c2c2c; margin-bottom: 8px; border-radius: 6px; cursor: pointer; transition: 0.2s; border-left: 4px solid transparent; }
+        .mol-link:hover { background: #3d3d3d; border-left-color: var(--accent-blue); }
+        
+        input, button { width: 100%; padding: 10px; margin-top: 10px; border-radius: 4px; border: none; box-sizing: border-box; }
+        button { background: var(--accent-blue); color: white; font-weight: bold; cursor: pointer; }
+        button:hover { filter: brightness(1.2); }
+
+        .status-box { margin-top: 15px; padding: 15px; border-radius: 4px; text-align: center; background: #333; font-weight: bold; }
+        .history-list { font-size: 0.8em; margin-top: 10px; max-height: 100px; overflow-y: auto; color: #bbb; }
+
+        /* RESPONSIVE */
+        @media (max-width: 900px) {
+            .grid-container {
+                grid-template-columns: 1fr;
+                grid-template-areas: "header" "main-view" "scores" "sidebar" "footer";
+                height: auto; overflow: visible;
+            }
+            .main-view { height: 500px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="grid-container">
+    <header class="header">
+        <h2 id="main-title">Ethanol Dashboard</h2>
+    </header>
+
+    <nav class="sidebar">
+        <h3>Molecule Library</h3>
+        <div class="mol-link" onclick="updateMolecule('ethanol')">Ethanol (C₂H₅OH)</div>
+        <div class="mol-link" onclick="updateMolecule('methanol')">Methanol (CH₃OH)</div>
+        <div class="mol-link" onclick="updateMolecule('propanol')">Propanol (C₃H₇OH)</div>
+        <hr style="border: 0.5px solid #444; margin: 20px 0;">
+        <button onclick="downloadCSV()" style="background: var(--text-green);">Download Data</button>
+    </nav>
+
+    <main class="main-view">
+        <div class="image-gallery">
+            <figure class="chem-image">
+                <img id="view-2d" src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d7/Ethanol-2D-skeletal.svg/300px-Ethanol-2D-skeletal.svg.png">
+                <figcaption>2D Structure</figcaption>
+            </figure>
+            <figure class="chem-image">
+                <img id="view-3d" src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Ethanol-3D-balls.png/300px-Ethanol-3D-balls.png">
+                <figcaption>3D Ball-and-Stick</figcaption>
+            </figure>
+        </div>
+    </main>
+
+    <section class="scores">
+        <h3>Docking Analysis</h3>
+        <label>Binding Affinity (kcal/mol):</label>
+        <input type="number" id="dockScore" value="-5.2" step="0.1">
+        <button onclick="runAnalysis()">Run Simulation</button>
+        <div id="statusBox" class="status-box">Awaiting Data...</div>
+        <div class="history-list" id="historyLog"></div>
+    </section>
+
+    <footer class="footer">
+        <div style="color: #666; margin-bottom: 5px;">// ATOMIC COORDINATES PDB FORMAT //</div>
+        <pre id="coordDisplay">
+ATOM      1  C1   ETH     1       0.007   0.001   0.000
+ATOM      2  C2   ETH     1       1.522   0.000   0.000
+ATOM      3  O1   ETH     1       2.001   1.231   0.000
+ATOM      4  H1   ETH     1      -0.364   0.899   0.320
+ATOM      5  H2   ETH     1      -0.364  -0.899   0.320
+        </pre>
+    </footer>
+</div>
+
+<script>
+    // DATABASE
+    const moleculeData = {
+        ethanol: {
+            name: "Ethanol",
+            img2d: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d7/Ethanol-2D-skeletal.svg/300px-Ethanol-2D-skeletal.svg.png",
+            img3d: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Ethanol-3D-balls.png/300px-Ethanol-3D-balls.png",
+            coords: `ATOM      1  C1   ETH     1       0.007   0.001   0.000\nATOM      2  C2   ETH     1       1.522   0.000   0.000\nATOM      3  O1   ETH     1       2.001   1.231   0.000\nATOM      4  H1   ETH     1      -0.364   0.899   0.320`
+        },
+        methanol: {
+            name: "Methanol",
+            img2d: "https://upload.wikimedia.org/wikipedia/commons/thumb/7/73/Methanol_flat_structure.svg/300px-Methanol_flat_structure.svg.png",
+            img3d: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Methanol-3D-balls.png/300px-Methanol-3D-balls.png",
+            coords: `ATOM      1  C1   MET     1       0.000   0.000   0.000\nATOM      2  O1   MET     1       1.420   0.000   0.000\nATOM      3  H1   MET     1      -0.370   0.930   0.310`
+        },
+        propanol: {
+            name: "Propanol",
+            img2d: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Propan-1-ol-2D-skeletal.svg/300px-Propan-1-ol-2D-skeletal.svg.png",
+            img3d: "https://upload.wikimedia.org/wikipedia/commons/thumb/7/71/Propan-1-ol-3D-balls.png/300px-Propan-1-ol-3D-balls.png",
+            coords: `ATOM      1  C1   PRO     1       0.000   0.000   0.000\nATOM      2  C2   PRO     1       1.500   0.000   0.000\nATOM      3  C3   PRO     1       2.100   1.300   0.000`
+        }
+    };
+
+    let historyLog = [];
+
+    // SWITCH MOLECULE
+    function updateMolecule(key) {
+        const mol = moleculeData[key];
+        document.getElementById('view-2d').src = mol.img2d;
+        document.getElementById('view-3d').src = mol.img3d;
+        document.getElementById('coordDisplay').innerText = mol.coords;
+        document.getElementById('main-title').innerText = mol.name + " Dashboard";
+    }
+
+    // RUN ANALYSIS
+    function runAnalysis() {
+        const score = parseFloat(document.getElementById('dockScore').value);
+        const status = document.getElementById('statusBox');
+        
+        if (score <= -7.0) {
+            status.style.background = "#2ecc71";
+            status.innerText = "STRONG AFFINITY";
+        } else if (score <= -4.5) {
+            status.style.background = "#f1c40f";
+            status.innerText = "MODERATE BINDING";
+        } else {
+            status.style.background = "#e74c3c";
+            status.innerText = "WEAK BINDING";
+        }
+
+        historyLog.push({ time: new Date().toLocaleTimeString(), val: score });
+        renderHistory();
+    }
+
+    function renderHistory() {
+        const log = document.getElementById('historyLog');
+        log.innerHTML = historyLog.map(item => `<div>${item.time}: ${item.val} kcal/mol</div>`).join('');
+    }
+
+    // EXPORT
+    function downloadCSV() {
+        let csv = "Time,Score\n" + historyLog.map(h => `${h.time},${h.val}`).join("\n");
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'docking_results.csv';
+        a.click();
+    }
+</script>
+
+</body>
+</html>
+
+```
